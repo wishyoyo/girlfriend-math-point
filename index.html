@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ff829d">
+  <title>戀愛數學集點簿</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="petal petal-a"></div>
+  <div class="petal petal-b"></div>
+  <div class="petal petal-c"></div>
+
+  <section id="loginView" class="login-shell">
+    <div class="login-card">
+      <div class="brand-mark">♡</div>
+      <p class="eyebrow">OUR LITTLE STUDY PLAN</p>
+      <h1>戀愛數學集點簿</h1>
+      <p class="subtitle">每一題努力，都離甜甜的獎勵更近一點。</p>
+
+      <form id="loginForm" class="login-form">
+        <label>電子信箱<input id="email" type="email" autocomplete="email" placeholder="name@example.com"></label>
+        <label>密碼<input id="password" type="password" autocomplete="current-password" placeholder="至少 6 個字元"></label>
+        <button class="primary-btn" type="submit">登入我們的集點簿</button>
+      </form>
+
+      <button id="demoBtn" class="text-btn">先用試玩模式看看</button>
+      <p id="loginMessage" class="form-message"></p>
+      <p class="login-hint">正式使用前，請依照 README 設定免費 Supabase 專案與兩個帳號。</p>
+    </div>
+  </section>
+
+  <div id="appView" class="app-shell hidden">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">TOGETHER, STEP BY STEP</p>
+        <h1>戀愛數學集點簿 <span>♡</span></h1>
+      </div>
+      <div class="header-actions">
+        <span id="roleBadge" class="role-badge"></span>
+        <button id="logoutBtn" class="icon-btn" aria-label="登出">登出</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero-grid">
+        <article class="points-card">
+          <div>
+            <p>目前可以使用</p>
+            <strong><span id="currentPoints">0</span><small> pt</small></strong>
+          </div>
+          <div class="heart-orbit">♥</div>
+          <p id="nextRewardText" class="next-reward">再努力一點，就能換獎勵囉！</p>
+          <div class="progress-track"><div id="rewardProgress" class="progress-fill"></div></div>
+        </article>
+
+        <article class="stat-card">
+          <span class="stat-icon">✦</span>
+          <p>累積賺取</p>
+          <strong id="earnedPoints">0 pt</strong>
+          <small>每一步都算數</small>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon">✓</span>
+          <p>整體答對率</p>
+          <strong id="accuracy">--</strong>
+          <small id="accuracyCount">尚未作答</small>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon">⌁</span>
+          <p>完成章節</p>
+          <strong id="chapterCount">0 章</strong>
+          <small>完整寫完才計入</small>
+        </article>
+      </section>
+
+      <nav class="tabs" aria-label="主要功能">
+        <button class="tab active" data-tab="record">記錄題目</button>
+        <button class="tab" data-tab="chapters">章節進度</button>
+        <button class="tab" data-tab="rewards">兌換獎勵</button>
+        <button class="tab" data-tab="history">歷史紀錄</button>
+      </nav>
+
+      <section id="recordPanel" class="panel active">
+        <div class="section-heading">
+          <div><p class="eyebrow">TODAY'S EFFORT</p><h2>記錄這次的努力</h2></div>
+          <span class="soft-note">由男友確認後入帳</span>
+        </div>
+
+        <form id="recordForm" class="paper-card">
+          <div class="form-grid">
+            <label>日期<input id="recordDate" type="date" required></label>
+            <label>書本
+              <select id="bookType">
+                <option value="lecture">數學講義</option>
+                <option value="workbook">數學習作</option>
+              </select>
+            </label>
+            <label class="wide">章節名稱<input id="chapterName" required placeholder="例如：第 3 章 一元二次方程式"></label>
+          </div>
+
+          <div class="score-key">
+            <span><i class="dot correct"></i>直接答對：滿分</span>
+            <span><i class="dot corrected"></i>訂正後對：一半</span>
+            <span><i class="dot answer"></i>看答案：0 分</span>
+          </div>
+
+          <div id="questionRows" class="question-rows"></div>
+
+          <div id="bonusBox" class="bonus-box">
+            <label class="check-label"><input id="chapterComplete" type="checkbox"><span>這一整章全部寫完</span><b>+10 pt</b></label>
+            <p>歷屆試題直接答對率達 70%，系統會自動加 <b>5 pt</b>。</p>
+          </div>
+
+          <div class="record-total">
+            <div><small>這次預計獲得</small><strong><span id="previewPoints">0</span> pt</strong></div>
+            <button class="primary-btn" type="submit">送出等待確認 ♡</button>
+          </div>
+        </form>
+
+        <div id="approvalSection" class="approval-section hidden">
+          <div class="section-heading"><div><p class="eyebrow">FOR REVIEW</p><h2>等待你的確認</h2></div></div>
+          <div id="approvalList" class="card-list"></div>
+        </div>
+      </section>
+
+      <section id="chaptersPanel" class="panel">
+        <div class="section-heading"><div><p class="eyebrow">CHAPTER JOURNEY</p><h2>章節進度</h2></div></div>
+        <div id="chapterList" class="chapter-grid"></div>
+      </section>
+
+      <section id="rewardsPanel" class="panel">
+        <div class="section-heading">
+          <div><p class="eyebrow">SWEET REWARDS</p><h2>努力兌換所</h2></div>
+          <span class="soft-note">兌換後會直接扣除點數</span>
+        </div>
+        <div id="rewardList" class="reward-grid"></div>
+      </section>
+
+      <section id="historyPanel" class="panel">
+        <div class="section-heading"><div><p class="eyebrow">OUR MEMORIES</p><h2>點數紀錄</h2></div></div>
+        <div class="paper-card table-wrap">
+          <table>
+            <thead><tr><th>日期</th><th>內容</th><th>狀態</th><th>點數</th></tr></thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer>Made with ♡ for every little bit of progress.</footer>
+  </div>
+
+  <dialog id="confirmDialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heart">♡</div>
+      <h2 id="dialogTitle">確認兌換？</h2>
+      <p id="dialogText"></p>
+      <div class="dialog-actions">
+        <button value="cancel" class="secondary-btn">再想一下</button>
+        <button id="dialogConfirm" value="confirm" class="primary-btn">確定</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
