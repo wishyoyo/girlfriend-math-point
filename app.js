@@ -8,6 +8,7 @@ const TYPES = [
 ];
 
 const REWARDS = [
+  { id: "line-sticker", emoji: "💬", name: "LINE 貼圖", detail: "可愛貼圖一組", points: 8 },
   { id: "drink", emoji: "🥤", name: "手搖杯", detail: "約 NT$50–80", points: 15 },
   { id: "tea", emoji: "🧋", name: "下午茶", detail: "甜點＋飲料", points: 25 },
   { id: "mcd", emoji: "🍟", name: "麥當勞套餐", detail: "大麥克等級", points: 35 }
@@ -135,6 +136,21 @@ class Store {
     if (!response.ok) throw new Error("確認失敗");
   }
 
+  async rejectRecord(id) {
+    if (this.mode === "demo") {
+      const data = this.localData();
+      const item = data.records.find((r) => r.id === id);
+      if (item) item.status = "rejected";
+      this.saveLocal(data);
+      return;
+    }
+    const response = await fetch(`${this.config.supabaseUrl}/rest/v1/study_records?id=eq.${id}`, {
+      method: "PATCH", headers: { ...this.headers(), Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "rejected" })
+    });
+    if (!response.ok) throw new Error("不確認失敗");
+  }
+
   async redeem(reward) {
     const item = { id: uid(), reward_id: reward.id, reward_name: reward.name, points: reward.points, redeemed_at: new Date().toISOString() };
     if (this.mode === "demo") {
@@ -153,6 +169,9 @@ class Store {
 
 const store = new Store();
 let appData = { records: [], redemptions: [] };
+let activeSubject = "math";
+let activeEnglishMode = "daily";
+let activeQuizRound = "1";
 
 function activeTypes() {
   const book = $("#bookType").value;
@@ -165,6 +184,7 @@ function renderQuestionRows() {
       <div class="type-name">${type.name}<small>每題 ${type.points} pt</small></div>
       <label>直接答對<input class="correct-input" type="number" min="0" value="0"></label>
       <label>訂正後對<input class="corrected-input" type="number" min="0" value="0"></label>
+      <label>錯誤未訂正<input class="uncorrected-input" type="number" min="0" value="0"></label>
       <label>看了解答<input class="answer-input" type="number" min="0" value="0"></label>
       <div class="row-points">0 pt</div>
     </div>
@@ -183,12 +203,13 @@ function calculateRecord() {
     const rate = Number(row.dataset.rate);
     const direct = Math.max(0, Number(row.querySelector(".correct-input").value) || 0);
     const corrected = Math.max(0, Number(row.querySelector(".corrected-input").value) || 0);
+    const uncorrected = Math.max(0, Number(row.querySelector(".uncorrected-input").value) || 0);
     const answer = Math.max(0, Number(row.querySelector(".answer-input").value) || 0);
     const points = direct * rate + corrected * rate * 0.5;
-    items[row.dataset.type] = { direct, corrected, answer, points };
+    items[row.dataset.type] = { direct, corrected, uncorrected, answer, points };
     basePoints += points;
     correct += direct;
-    attempted += direct + corrected + answer;
+    attempted += direct + corrected + uncorrected + answer;
     row.querySelector(".row-points").textContent = `${formatPoints(points)} pt`;
   });
 
@@ -196,26 +217,88 @@ function calculateRecord() {
   const complete = $("#bookType").value === "lecture" && $("#chapterComplete").checked;
   if (complete) bonus += 10;
   const past = items.past;
-  const pastTotal = past ? past.direct + past.corrected + past.answer : 0;
+  const pastTotal = past ? past.direct + past.corrected + past.uncorrected + past.answer : 0;
   const pastBonus = pastTotal > 0 && past.direct / pastTotal >= 0.7;
   if (pastBonus) bonus += 5;
   return { items, basePoints, bonus, total: basePoints + bonus, correct, attempted, complete, pastBonus };
 }
 
 function updatePreview() {
-  $("#previewPoints").textContent = formatPoints(calculateRecord().total);
+  const total = activeSubject === "english" ? calculateEnglishRecord().total : calculateRecord().total;
+  $("#previewPoints").textContent = formatPoints(total);
 }
 
 function formatPoints(value) {
   return Number.isInteger(value) ? value : value.toFixed(1);
 }
 
+function formatSignedPoints(value) {
+  const points = Number(value);
+  return `${points > 0 ? "+" : ""}${formatPoints(points)}`;
+}
+
+function isEnglishRecord(record) {
+  return record.book_type === "english_daily" || record.book_type === "english_quiz";
+}
+
+function describeRecord(record) {
+  if (record.book_type === "english_daily") {
+    const words = Number(record.items?.words || record.attempted_count || 0);
+    return `英文 · 日常背單字 · ${words} 個`;
+  }
+  if (record.book_type === "english_quiz") {
+    const roundText = record.items?.round === "3" ? "第 3 次以上" : `第 ${record.items?.round || 1} 次`;
+    return `英文 · 單字複習考 · ${roundText} · 對 ${record.correct_count || 0} / 錯 ${record.items?.wrong || 0}`;
+  }
+  return `${record.book_type === "workbook" ? "習作" : "講義"} · ${record.chapter_name}`;
+}
+
+function calculateEnglishRecord() {
+  if (activeEnglishMode === "daily") {
+    const words = Math.max(0, Number($("#dailyWordCount").value) || 0);
+    return { mode: "daily", total: words * 0.5, correct: 0, attempted: words, items: { mode: "daily", words } };
+  }
+
+  const correct = Math.max(0, Number($("#quizCorrectCount").value) || 0);
+  const wrong = Math.max(0, Number($("#quizWrongCount").value) || 0);
+  const correctRate = activeQuizRound === "1" ? 1 : activeQuizRound === "2" ? 0.5 : 0;
+  const wrongRate = activeQuizRound === "3" ? -1 : 0;
+  const total = correct * correctRate + wrong * wrongRate;
+  return {
+    mode: "quiz",
+    total,
+    correct,
+    attempted: correct + wrong,
+    items: { mode: "quiz", round: activeQuizRound, correct, wrong, correctRate, wrongRate }
+  };
+}
+
+function updateRecordSubject() {
+  const isEnglish = activeSubject === "english";
+  $("#mathRecordFields").classList.toggle("hidden", isEnglish);
+  $("#englishRecordFields").classList.toggle("hidden", !isEnglish);
+  $("#bookTypeField").classList.toggle("hidden", isEnglish);
+  $("#recordTitleLabel").textContent = isEnglish ? "備註" : "章節名稱";
+  $("#chapterName").required = !isEnglish;
+  $("#chapterName").placeholder = isEnglish ? "可留空，例如：Unit 3 單字" : "例如：第 3 章 一元二次方程式";
+  $("#recordSubmitBtn").textContent = isEnglish ? "記錄英文點數" : "送出等待確認 ♡";
+  updateEnglishMode();
+  updatePreview();
+}
+
+function updateEnglishMode() {
+  const isQuiz = activeEnglishMode === "quiz";
+  $("#dailyWordsFields").classList.toggle("hidden", isQuiz);
+  $("#quizWordsFields").classList.toggle("hidden", !isQuiz);
+}
+
 function getStats() {
   const approved = appData.records.filter((r) => r.status === "approved");
+  const accuracyRecords = approved.filter((r) => r.book_type !== "english_daily");
   const earned = approved.reduce((sum, r) => sum + Number(r.points), 0);
   const spent = appData.redemptions.reduce((sum, r) => sum + Number(r.points), 0);
-  const correct = approved.reduce((sum, r) => sum + Number(r.correct_count || 0), 0);
-  const attempted = approved.reduce((sum, r) => sum + Number(r.attempted_count || 0), 0);
+  const correct = accuracyRecords.reduce((sum, r) => sum + Number(r.correct_count || 0), 0);
+  const attempted = accuracyRecords.reduce((sum, r) => sum + Number(r.attempted_count || 0), 0);
   const chapters = new Set(approved.filter((r) => r.chapter_complete).map((r) => r.chapter_name)).size;
   return { earned, spent, current: earned - spent, correct, attempted, chapters };
 }
@@ -230,7 +313,7 @@ function renderDashboard() {
   const next = REWARDS.find((r) => r.points > stats.current) || REWARDS[REWARDS.length - 1];
   const remaining = Math.max(0, next.points - stats.current);
   $("#nextRewardText").textContent = remaining ? `再 ${formatPoints(remaining)} pt 就能換「${next.name}」` : "今天也可以兌換一份獎勵 ♡";
-  $("#rewardProgress").style.width = `${Math.min(100, stats.current / next.points * 100)}%`;
+  $("#rewardProgress").style.width = `${Math.max(0, Math.min(100, stats.current / next.points * 100))}%`;
 }
 
 function renderApprovals() {
@@ -239,16 +322,21 @@ function renderApprovals() {
   $("#approvalSection").classList.toggle("hidden", !canApprove || !pending.length);
   $("#approvalList").innerHTML = pending.map((r) => `
     <article class="approval-card">
-      <div><strong>${escapeHtml(r.chapter_name)}</strong><p>${r.study_date} · ${r.book_type === "workbook" ? "數學習作" : "數學講義"} · ${r.attempted_count} 題</p></div>
-      <div class="approval-actions"><strong>+${formatPoints(Number(r.points))} pt</strong><button class="primary-btn approve-btn" data-id="${r.id}">確認入帳</button></div>
+      <div><strong>${escapeHtml(r.chapter_name)}</strong><p>${r.study_date} · ${escapeHtml(describeRecord(r))}</p></div>
+      <div class="approval-actions">
+        <strong>${formatSignedPoints(Number(r.points))} pt</strong>
+        <button class="secondary-btn reject-btn" data-id="${r.id}">不確認</button>
+        <button class="primary-btn approve-btn" data-id="${r.id}">確認入帳</button>
+      </div>
     </article>
   `).join("");
   $$(".approve-btn").forEach((button) => button.addEventListener("click", () => approve(button.dataset.id)));
+  $$(".reject-btn").forEach((button) => button.addEventListener("click", () => reject(button.dataset.id)));
 }
 
 function renderChapters() {
   const grouped = {};
-  appData.records.filter((r) => r.status === "approved").forEach((r) => {
+  appData.records.filter((r) => r.status === "approved" && !isEnglishRecord(r)).forEach((r) => {
     grouped[r.chapter_name] ||= { points: 0, attempted: 0, correct: 0, complete: false, book: r.book_type };
     grouped[r.chapter_name].points += Number(r.points);
     grouped[r.chapter_name].attempted += Number(r.attempted_count || 0);
@@ -283,8 +371,10 @@ function renderRewards() {
 
 function renderHistory() {
   const records = appData.records.map((r) => ({
-    date: r.study_date, description: `${r.book_type === "workbook" ? "習作" : "講義"} · ${r.chapter_name}`,
-    status: r.status, statusText: r.status === "approved" ? "已入帳" : "待確認", points: `+${formatPoints(Number(r.points))}`
+    date: r.study_date, description: describeRecord(r),
+    status: r.status,
+    statusText: r.status === "approved" ? "已入帳" : r.status === "rejected" ? "未入帳" : "待確認",
+    points: r.status === "rejected" ? "0" : formatSignedPoints(Number(r.points))
   }));
   const redemptions = appData.redemptions.map((r) => ({
     date: (r.redeemed_at || r.created_at).slice(0, 10), description: `兌換 · ${r.reward_name}`,
@@ -323,6 +413,16 @@ async function approve(id) {
   }
 }
 
+async function reject(id) {
+  try {
+    await store.rejectRecord(id);
+    await refresh();
+    toast("已不確認，這筆不會入帳，可以重新送出正確紀錄。");
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 function requestRedeem(id) {
   const reward = REWARDS.find((item) => item.id === id);
   $("#dialogTitle").textContent = `兌換「${reward.name}」？`;
@@ -356,6 +456,7 @@ function enterApp() {
   $("#roleBadge").textContent = store.mode === "demo" ? "試玩模式 · 你是確認者" : `${store.user.name || "使用者"} · ${store.user.role === "boyfriend" ? "確認者" : "學習者"}`;
   $("#recordDate").value = today();
   renderQuestionRows();
+  updateRecordSubject();
   refresh();
 }
 
@@ -382,9 +483,36 @@ $("#logoutBtn").addEventListener("click", () => {
 
 $("#bookType").addEventListener("change", renderQuestionRows);
 $("#chapterComplete").addEventListener("change", updatePreview);
+$("#dailyWordCount").addEventListener("input", updatePreview);
+$("#quizCorrectCount").addEventListener("input", updatePreview);
+$("#quizWrongCount").addEventListener("input", updatePreview);
+
+$$(".subject-btn").forEach((button) => button.addEventListener("click", () => {
+  activeSubject = button.dataset.subject;
+  $$(".subject-btn").forEach((item) => item.classList.toggle("active", item === button));
+  updateRecordSubject();
+}));
+
+$$(".mode-btn").forEach((button) => button.addEventListener("click", () => {
+  activeEnglishMode = button.dataset.mode;
+  $$(".mode-btn").forEach((item) => item.classList.toggle("active", item === button));
+  updateEnglishMode();
+  updatePreview();
+}));
+
+$$(".round-btn").forEach((button) => button.addEventListener("click", () => {
+  activeQuizRound = button.dataset.round;
+  $$(".round-btn").forEach((item) => item.classList.toggle("active", item === button));
+  updatePreview();
+}));
 
 $("#recordForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (activeSubject === "english") {
+    await submitEnglishRecord(event.target);
+    return;
+  }
+
   const calculation = calculateRecord();
   if (!calculation.attempted) return toast("請至少記錄一題喔");
   const record = {
@@ -412,6 +540,41 @@ $("#recordForm").addEventListener("submit", async (event) => {
     toast(error.message);
   }
 });
+
+async function submitEnglishRecord(form) {
+  const calculation = calculateEnglishRecord();
+  if (!calculation.attempted) return toast("請至少記錄一個英文單字或一題測驗");
+  const isDaily = calculation.mode === "daily";
+  const title = $("#chapterName").value.trim() || (isDaily ? "日常背單字" : "單字複習考");
+  const record = {
+    id: uid(),
+    study_date: $("#recordDate").value,
+    book_type: isDaily ? "english_daily" : "english_quiz",
+    chapter_name: title,
+    items: calculation.items,
+    points: calculation.total,
+    correct_count: calculation.correct,
+    attempted_count: calculation.attempted,
+    chapter_complete: false,
+    past_bonus: false,
+    status: "approved",
+    created_at: new Date().toISOString()
+  };
+  try {
+    await store.addRecord(record);
+    form.reset();
+    $("#recordDate").value = today();
+    activeEnglishMode = "daily";
+    activeQuizRound = "1";
+    $$(".mode-btn").forEach((button) => button.classList.toggle("active", button.dataset.mode === activeEnglishMode));
+    $$(".round-btn").forEach((button) => button.classList.toggle("active", button.dataset.round === activeQuizRound));
+    updateRecordSubject();
+    await refresh();
+    toast("英文點數已記錄並入帳");
+  } catch (error) {
+    toast(error.message);
+  }
+}
 
 $$(".tab").forEach((button) => button.addEventListener("click", () => {
   $$(".tab").forEach((tab) => tab.classList.toggle("active", tab === button));
