@@ -89,33 +89,65 @@
         </div>
 
         <form id="recordForm" class="paper-card">
+          <div class="subject-switch" aria-label="選擇科目">
+            <button type="button" class="subject-btn active" data-subject="math">數學</button>
+            <button type="button" class="subject-btn" data-subject="english">英文</button>
+          </div>
+
           <div class="form-grid">
             <label>日期<input id="recordDate" type="date" required></label>
-            <label>書本
+            <label id="bookTypeField">書本
               <select id="bookType">
                 <option value="lecture">數學講義</option>
                 <option value="workbook">數學習作</option>
               </select>
             </label>
-            <label class="wide">章節名稱<input id="chapterName" required placeholder="例如：第 3 章 一元二次方程式"></label>
+            <label id="recordTitleField" class="wide"><span id="recordTitleLabel">章節名稱</span><input id="chapterName" required placeholder="例如：第 3 章 一元二次方程式"></label>
           </div>
 
-          <div class="score-key">
+          <div id="mathRecordFields">
+            <div class="score-key">
             <span><i class="dot correct"></i>直接答對：滿分</span>
             <span><i class="dot corrected"></i>訂正後對：一半</span>
+            <span><i class="dot uncorrected"></i>錯誤未訂正：0 分</span>
             <span><i class="dot answer"></i>看答案：0 分</span>
+            </div>
+
+            <div id="questionRows" class="question-rows"></div>
+
+            <div id="bonusBox" class="bonus-box">
+              <label class="check-label"><input id="chapterComplete" type="checkbox"><span>這一整章全部寫完</span><b>+10 pt</b></label>
+              <p>歷屆試題直接答對率達 70%，系統會自動加 <b>5 pt</b>。</p>
+            </div>
           </div>
 
-          <div id="questionRows" class="question-rows"></div>
+          <div id="englishRecordFields" class="hidden">
+            <div class="mode-switch" aria-label="英文記錄模式">
+              <button type="button" class="mode-btn active" data-mode="daily">日常背單字</button>
+              <button type="button" class="mode-btn" data-mode="quiz">單字複習考</button>
+            </div>
 
-          <div id="bonusBox" class="bonus-box">
-            <label class="check-label"><input id="chapterComplete" type="checkbox"><span>這一整章全部寫完</span><b>+10 pt</b></label>
-            <p>歷屆試題直接答對率達 70%，系統會自動加 <b>5 pt</b>。</p>
+            <div id="dailyWordsFields" class="english-card">
+              <label>今天背了幾個單字<input id="dailyWordCount" type="number" min="0" value="0"></label>
+              <p>每個單字固定 +0.5 pt。</p>
+            </div>
+
+            <div id="quizWordsFields" class="english-card hidden">
+              <div class="quiz-rounds" aria-label="第幾次測驗">
+                <button type="button" class="round-btn active" data-round="1">第 1 次</button>
+                <button type="button" class="round-btn" data-round="2">第 2 次</button>
+                <button type="button" class="round-btn" data-round="3">第 3 次以上</button>
+              </div>
+              <div class="english-grid">
+                <label>答對幾題<input id="quizCorrectCount" type="number" min="0" value="0"></label>
+                <label>答錯幾題<input id="quizWrongCount" type="number" min="0" value="0"></label>
+              </div>
+            </div>
           </div>
 
           <div class="record-total">
             <div><small>這次預計獲得</small><strong><span id="previewPoints">0</span> pt</strong></div>
-            <button class="primary-btn" type="submit">送出等待確認 ♡</button>
+            <button id="recordSubmitBtn" class="primary-btn" type="submit">送出等待確認 ♡</button>
           </div>
         </form>
 
