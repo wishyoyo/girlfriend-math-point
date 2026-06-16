@@ -148,7 +148,10 @@ class Store {
       method: "PATCH", headers: { ...this.headers(), Prefer: "return=minimal" },
       body: JSON.stringify({ status: "rejected" })
     });
-    if (!response.ok) throw new Error("不確認失敗");
+    if (!response.ok) {
+      const message = await readErrorMessage(response);
+      throw new Error(message || "不確認失敗，請確認 Supabase 已允許 rejected 狀態。");
+    }
   }
 
   async redeem(reward) {
@@ -388,6 +391,15 @@ function renderHistory() {
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
+}
+
+async function readErrorMessage(response) {
+  try {
+    const data = await response.json();
+    return data.message || data.error_description || data.msg || "";
+  } catch {
+    return "";
+  }
 }
 
 async function refresh() {
