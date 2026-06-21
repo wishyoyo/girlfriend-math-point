@@ -118,7 +118,10 @@ class Store {
       method: "POST", headers: { ...this.headers(), Prefer: "return=minimal" },
       body: JSON.stringify({ ...record, couple_code: this.user.couple_code, submitted_by: this.user.id })
     });
-    if (!response.ok) throw new Error("送出紀錄失敗");
+    if (!response.ok) {
+      const message = await readErrorMessage(response);
+      throw new Error(message || "送出紀錄失敗");
+    }
   }
 
   async approveRecord(id) {
@@ -167,6 +170,42 @@ class Store {
       body: JSON.stringify({ ...item, couple_code: this.user.couple_code, redeemed_by: this.user.id })
     });
     if (!response.ok) throw new Error("兌換失敗");
+  }
+
+  async deleteRecord(id) {
+    if (this.mode === "demo") {
+      const data = this.localData();
+      data.records = data.records.filter((r) => r.id !== id);
+      this.saveLocal(data);
+      return;
+    }
+    const response = await fetch(`${this.config.supabaseUrl}/rest/v1/study_records?id=eq.${encodeURIComponent(id)}`, {
+      method: "DELETE", headers: { ...this.headers(), Prefer: "return=representation" }
+    });
+    if (!response.ok) {
+      const message = await readErrorMessage(response);
+      throw new Error(message || "刪除紀錄失敗");
+    }
+    const deleted = await response.json();
+    if (!deleted.length) throw new Error("刪除紀錄失敗，請確認 Supabase 已允許刪除權限。");
+  }
+
+  async deleteRedemption(id) {
+    if (this.mode === "demo") {
+      const data = this.localData();
+      data.redemptions = data.redemptions.filter((r) => r.id !== id);
+      this.saveLocal(data);
+      return;
+    }
+    const response = await fetch(`${this.config.supabaseUrl}/rest/v1/redemptions?id=eq.${encodeURIComponent(id)}`, {
+      method: "DELETE", headers: { ...this.headers(), Prefer: "return=representation" }
+    });
+    if (!response.ok) {
+      const message = await readErrorMessage(response);
+      throw new Error(message || "刪除兌換紀錄失敗");
+    }
+    const deleted = await response.json();
+    if (!deleted.length) throw new Error("刪除兌換紀錄失敗，請確認 Supabase 已允許刪除權限。");
   }
 }
 
@@ -374,19 +413,30 @@ function renderRewards() {
 
 function renderHistory() {
   const records = appData.records.map((r) => ({
+    id: r.id, type: "record",
     date: r.study_date, description: describeRecord(r),
     status: r.status,
     statusText: r.status === "approved" ? "已入帳" : r.status === "rejected" ? "未入帳" : "待確認",
     points: r.status === "rejected" ? "0" : formatSignedPoints(Number(r.points))
   }));
   const redemptions = appData.redemptions.map((r) => ({
+    id: r.id, type: "redemption",
     date: (r.redeemed_at || r.created_at).slice(0, 10), description: `兌換 · ${r.reward_name}`,
     status: "approved", statusText: "已兌換", points: `-${formatPoints(Number(r.points))}`
   }));
   const rows = [...records, ...redemptions].sort((a, b) => b.date.localeCompare(a.date));
   $("#historyBody").innerHTML = rows.length ? rows.map((r) => `
-    <tr><td>${r.date}</td><td>${escapeHtml(r.description)}</td><td><span class="status ${r.status}">${r.statusText}</span></td><td>${r.points} pt</td></tr>
-  `).join("") : '<tr><td colspan="4" class="empty-state">目前還沒有紀錄。</td></tr>';
+    <tr>
+      <td>${r.date}</td>
+      <td>${escapeHtml(r.description)}</td>
+      <td><span class="status ${r.status}">${r.statusText}</span></td>
+      <td class="points-cell">${r.points} pt</td>
+      <td><button class="delete-history-btn" data-id="${r.id}" data-type="${r.type}" aria-label="刪除這筆紀錄">×</button></td>
+    </tr>
+  `).join("") : '<tr><td colspan="5" class="empty-state">目前還沒有紀錄。</td></tr>';
+  $$(".delete-history-btn").forEach((button) => {
+    button.addEventListener("click", () => requestDeleteHistory(button.dataset.type, button.dataset.id));
+  });
 }
 
 function escapeHtml(value) {
@@ -439,6 +489,7 @@ function requestRedeem(id) {
   const reward = REWARDS.find((item) => item.id === id);
   $("#dialogTitle").textContent = `兌換「${reward.name}」？`;
   $("#dialogText").textContent = `將扣除 ${reward.points} pt，兌換日期與紀錄會保留下來。`;
+  $("#dialogConfirm").dataset.action = "redeem";
   $("#dialogConfirm").dataset.reward = id;
   $("#confirmDialog").showModal();
 }
@@ -450,6 +501,38 @@ async function redeemConfirmed() {
     await store.redeem(reward);
     await refresh();
     toast(`成功兌換 ${reward.name}，好好享受！`);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function requestDeleteHistory(type, id) {
+  const isRedemption = type === "redemption";
+  const source = isRedemption ? appData.redemptions : appData.records;
+  const item = source.find((row) => row.id === id);
+  if (!item) return;
+  const pointText = isRedemption
+    ? `${formatPoints(Number(item.points))} pt 會退回可用點數`
+    : `${item.status === "approved" ? formatSignedPoints(Number(item.points)) : "0"} pt 會從紀錄中移除`;
+  $("#dialogTitle").textContent = "刪除這筆紀錄？";
+  $("#dialogText").textContent = `刪除後無法從畫面復原，${pointText}。請再次按「確定」才會刪除。`;
+  $("#dialogConfirm").dataset.action = "delete-history";
+  $("#dialogConfirm").dataset.type = type;
+  $("#dialogConfirm").dataset.id = id;
+  $("#confirmDialog").showModal();
+}
+
+async function deleteHistoryConfirmed() {
+  const { type, id } = $("#dialogConfirm").dataset;
+  try {
+    if (type === "redemption") {
+      await store.deleteRedemption(id);
+      toast("已刪除兌換紀錄，點數已退回。");
+    } else {
+      await store.deleteRecord(id);
+      toast("已刪除學習紀錄，相關點數已移除。");
+    }
+    await refresh();
   } catch (error) {
     toast(error.message);
   }
@@ -594,7 +677,16 @@ $$(".tab").forEach((button) => button.addEventListener("click", () => {
 }));
 
 $("#confirmDialog").addEventListener("close", () => {
-  if ($("#confirmDialog").returnValue === "confirm") redeemConfirmed();
+  const confirmButton = $("#dialogConfirm");
+  const action = confirmButton.dataset.action;
+  if ($("#confirmDialog").returnValue === "confirm") {
+    if (action === "delete-history") deleteHistoryConfirmed();
+    if (action === "redeem") redeemConfirmed();
+  }
+  delete confirmButton.dataset.action;
+  delete confirmButton.dataset.reward;
+  delete confirmButton.dataset.type;
+  delete confirmButton.dataset.id;
 });
 
 store.restore().then((restored) => {

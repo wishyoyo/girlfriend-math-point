@@ -77,6 +77,12 @@ create policy "couple creates redemptions" on public.redemptions for insert
     and redeemed_by = auth.uid()
   );
 
+create policy "couple deletes records" on public.study_records for delete
+  using (couple_code = (select couple_code from public.profiles where id = auth.uid()));
+
+create policy "couple deletes redemptions" on public.redemptions for delete
+  using (couple_code = (select couple_code from public.profiles where id = auth.uid()));
+
 -- 建立 Auth 使用者後執行。請替換 email、name、role 與你們共用的 couple_code。
 -- insert into public.profiles (id, email, name, role, couple_code)
 -- select id, email, '你的名字', 'boyfriend', 'OUR-SECRET-CODE' from auth.users where email = 'your@email.com';
@@ -91,3 +97,5 @@ create policy "couple creates redemptions" on public.redemptions for insert
 -- 如果你之前已經建立過 study_records，也請執行下面兩行，讓英文單字紀錄可以寫入。
 -- alter table public.study_records drop constraint if exists study_records_book_type_check;
 -- alter table public.study_records add constraint study_records_book_type_check check (book_type in ('lecture', 'workbook', 'english_daily', 'english_quiz'));
+
+-- 如果你之前已經建立過資料庫，也請執行 supabase-update.sql，更新舊約束並加入刪除權限。

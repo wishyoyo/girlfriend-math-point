@@ -156,12 +156,17 @@ input:focus, select:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgb
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 14px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; white-space: nowrap; }
 th { color: var(--muted); font-size: 11px; }
-td:last-child { color: var(--pink-dark); font-weight: 900; }
+.points-cell { color: var(--pink-dark); font-weight: 900; }
 .empty-state { padding: 42px; color: var(--muted); text-align: center; }
 .status { padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; background: #f1edef; }
 .status.approved { color: #348777; background: #e4f7f1; }
 .status.pending { color: #a67626; background: #fff3d9; }
 .status.rejected { color: #9d4444; background: #ffe7e7; }
+.delete-history-btn {
+  display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%;
+  color: #9d4444; font-size: 20px; line-height: 1; background: #ffe7e7;
+}
+.delete-history-btn:hover { color: white; background: #e9587a; }
 
 footer { padding: 15px 0 32px; color: #b39fa6; text-align: center; font-family: Georgia, serif; font-size: 12px; }
 dialog { width: min(410px, calc(100% - 30px)); border: 0; border-radius: 25px; padding: 0; box-shadow: 0 25px 80px rgba(74,47,57,.25); }
