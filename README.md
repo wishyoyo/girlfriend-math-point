@@ -22,7 +22,17 @@ window.APP_CONFIG = {
 };
 ```
 
-7. 將 `outputs` 資料夾部署至 Netlify、Vercel 或 GitHub Pages，即可讓手機與電腦共用。
+7. 將專案資料夾中的 `index.html`、`styles.css`、`app.js`、`config.js` 部署至 Netlify、Vercel 或 GitHub Pages，即可讓手機與電腦共用。
+
+## 更新既有 Supabase 專案
+
+如果網站已經上線過，新增功能後不只要重新部署網頁檔案，也要更新 Supabase 資料庫規則。
+
+在 Supabase 的 SQL Editor 貼上並執行 `supabase-update.sql`。這會允許：
+
+- 「不確認」紀錄使用 `rejected` 狀態
+- 英文紀錄使用 `english_daily` 與 `english_quiz` 類型
+- 歷史紀錄與兌換紀錄可以刪除
 
 ## 計分規則
 
