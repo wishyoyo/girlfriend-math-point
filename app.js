@@ -298,12 +298,12 @@ function describeRecord(record) {
 function calculateEnglishRecord() {
   if (activeEnglishMode === "daily") {
     const words = Math.max(0, Number($("#dailyWordCount").value) || 0);
-    return { mode: "daily", total: words * 0.5, correct: 0, attempted: words, items: { mode: "daily", words } };
+    return { mode: "daily", total: words * 0.3, correct: 0, attempted: words, items: { mode: "daily", words } };
   }
 
   const correct = Math.max(0, Number($("#quizCorrectCount").value) || 0);
   const wrong = Math.max(0, Number($("#quizWrongCount").value) || 0);
-  const correctRate = activeQuizRound === "1" ? 1 : activeQuizRound === "2" ? 0.5 : 0;
+  const correctRate = activeQuizRound === "1" ? 0.5 : activeQuizRound === "2" ? 0.3 : 0;
   const wrongRate = activeQuizRound === "3" ? -1 : 0;
   const total = correct * correctRate + wrong * wrongRate;
   return {
