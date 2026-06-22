@@ -8,7 +8,7 @@ const TYPES = [
 ];
 
 const REWARDS = [
-  { id: "line-sticker", emoji: "💬", name: "LINE 貼圖", detail: "可愛的貼圖一組", points: 8 },
+  { id: "line-sticker", emoji: "💬", name: "LINE 貼圖", detail: "可愛的貼圖一組", points: 12 },
   { id: "drink", emoji: "🥤", name: "手搖杯", detail: "約 NT$50–80", points: 15 },
   { id: "tea", emoji: "🧋", name: "下午茶", detail: "甜點＋飲料", points: 25 },
   { id: "mcd", emoji: "🍟", name: "麥當勞套餐", detail: "大麥克等級", points: 35 }
